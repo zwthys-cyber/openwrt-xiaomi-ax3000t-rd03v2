@@ -30,16 +30,18 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
-      RD03V2_WS: ${{ runner.temp }}/yala-ws
-      TREE: ${{ runner.temp }}/yala-ws/openwrt-v2
-      V2_KEY_DIR: ${{ runner.temp }}/yala-signing
-      V2_DL: ${{ runner.temp }}/yala-cache/dl
       CCACHE_MAXSIZE: 2G
       JOBS: '4'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - name: Define runner workspace paths
+        run: |
+          echo "RD03V2_WS=$RUNNER_TEMP/yala-ws" >> "$GITHUB_ENV"
+          echo "TREE=$RUNNER_TEMP/yala-ws/openwrt-v2" >> "$GITHUB_ENV"
+          echo "V2_KEY_DIR=$RUNNER_TEMP/yala-signing" >> "$GITHUB_ENV"
+          echo "V2_DL=$RUNNER_TEMP/yala-cache/dl" >> "$GITHUB_ENV"
       - name: Free hosted-runner disk space
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/share/swift
