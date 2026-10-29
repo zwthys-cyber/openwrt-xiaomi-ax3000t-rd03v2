@@ -50,7 +50,17 @@ def main():
     text = makefile.read_text()
     if text.count('PKG_VERSION:=0.48.002\n') != 1:
         raise ValueError('OpenClash version changed')
-    makefile.write_text(text.replace('PKG_VERSION:=0.48.002\n', 'PKG_VERSION:=0.48.002\nPKG_RELEASE:=101\n'))
+    text = text.replace('PKG_VERSION:=0.48.002\n', 'PKG_VERSION:=0.48.002\nPKG_RELEASE:=101\nPKG_BUILD_DEPENDS:=luci-base/host\n')
+    # This image has a fixed Firewall4 profile. Its config already selects
+    # these features; avoid re-declaring global Kconfig options in the plugin.
+    start = text.index('define Package/$(PKG_NAME)/config\n')
+    end = text.index('\nendef', start) + len('\nendef')
+    text = text[:start] + text[end:]
+    anchor = '+ruby +ruby-yaml +kmod-tun +unzip'
+    if text.count(anchor) != 1:
+        raise ValueError('OpenClash dependency anchor changed')
+    text = text.replace(anchor, anchor + ' +luci-compat +kmod-inet-diag +kmod-nft-tproxy')
+    makefile.write_text(text)
     subprocess.run(['sh', '-n', str(init)], check=True)
 
 

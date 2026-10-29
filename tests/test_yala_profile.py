@@ -1,14 +1,46 @@
 import importlib.util
 from pathlib import Path
+import shutil
 import subprocess
+import sys
+import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / 'overlay/target/linux/qualcommax/ipq50xx/base-files'
 
 
 class ProfileTests(unittest.TestCase):
+    def test_pinned_profile_preparation_keeps_explicit_build_dependencies(self):
+        spec = importlib.util.spec_from_file_location('profile', ROOT / 'tools/apply-yala-profile.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as temporary:
+            work = Path(temporary)
+            tree = work / 'tree'
+            recipe = tree / 'package/utils/ucode/Makefile'
+            recipe.parent.mkdir(parents=True)
+            recipe.write_text('old recipe')
+            package = work / ('OpenClash-' + module.OPENCLASH_COMMIT) / 'luci-app-openclash'
+            init = package / 'root/etc/init.d/openclash'
+            init.parent.mkdir(parents=True)
+            init.write_text('#!/bin/sh\nstart() {\n procd_set_param env SAFE_PATHS=/tmp\n}\n')
+            (package / 'Makefile').write_text('PKG_VERSION:=0.48.002\ndefine Package/$(PKG_NAME)/config\n config demo\nendef\nDEPENDS:=+ruby +ruby-yaml +kmod-tun +unzip\n')
+            archive = work / 'source.tar.gz'
+            with tarfile.open(archive, 'w:gz') as output:
+                output.add(package, arcname='OpenClash-' + module.OPENCLASH_COMMIT + '/luci-app-openclash')
+            with patch.object(sys, 'argv', ['prepare', str(tree)]), patch.object(module.urllib.request, 'urlretrieve', side_effect=lambda url, path: shutil.copyfile(archive, path)):
+                module.main()
+            prepared = (tree / 'package/yala/luci-app-openclash/Makefile').read_text()
+            self.assertIn('PKG_BUILD_DEPENDS:=luci-base/host', prepared)
+            self.assertIn('+kmod-nft-tproxy', prepared)
+            self.assertNotIn('define Package/$(PKG_NAME)/config', prepared)
+            self.assertIn('GOMEMLIMIT=32MiB', (tree / 'package/yala/luci-app-openclash/root/etc/init.d/openclash').read_text())
+            self.assertIn('PKG_ABI_VERSION:=20261009', recipe.read_text())
+            self.assertTrue((tree / 'files/etc/rc.d/S18yala-zram').is_symlink())
+
     def test_vendor_abi_and_required_dependencies(self):
         text = (ROOT / 'vendor/ucode/Makefile').read_text()
         self.assertIn('PKG_ABI_VERSION:=20261009', text)
