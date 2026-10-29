@@ -305,6 +305,19 @@ stub tick <<'EOF'
 world_poll
 EOF
 
+# Ubuntu's BusyBox ash may prefer built-in applets to PATH. Pin the
+# intercepted commands as shell functions so --check never reads the host
+# kernel log, unloads host modules or requests a host reboot. The production
+# watchdog source and every scenario stay unchanged.
+CHECK_WD=$WORK/watchdog-with-command-stubs
+{
+	for cmd in iw wifi ubus modprobe rmmod insmod reboot dmesg logger sync uci jsonfilter; do
+		printf '%s() { "%s/%s" "$@"; }\n' "$cmd" "$STUBS" "$cmd"
+	done
+	cat "$WD"
+} > "$CHECK_WD"
+WD=$CHECK_WD
+
 # --- toolboxes ----------------------------------------------------------------
 mk_toolbox() {  # mk_toolbox ENV: sets TB, SHELL_DESC
 	TB=$WORK/tb-$1

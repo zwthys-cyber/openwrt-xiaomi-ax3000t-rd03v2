@@ -44,6 +44,10 @@ jobs:
           chmod +x diagnostics/stubs/dmesg
           PATH="$PWD/diagnostics/stubs:$PATH" busybox ash -c 'dmesg' > diagnostics/host-shadow.log 2>&1 || true
           cat diagnostics/host-shadow.log
+      - name: Run every watchdog scenario with Ubuntu host shell
+        run: |
+          tools/test-watchdog.sh --env host --rootfs "$PWD/diagnostics/root" > diagnostics/watchdog-host.log 2>&1
+          tail -n 5 diagnostics/watchdog-host.log
       - name: Run every watchdog scenario with shipped arm64 shell
         run: |
           tools/test-watchdog.sh --env target --rootfs "$PWD/diagnostics/root" > diagnostics/watchdog-target.log 2>&1
