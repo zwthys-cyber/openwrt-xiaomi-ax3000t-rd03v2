@@ -1,0 +1,63 @@
+name: Verify watchdog harness against published arm64 image
+
+on:
+  push:
+    branches: [codex/watchdog-check]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install image inspection tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y busybox qemu-user squashfs-tools
+      - name: Fetch checksum-verified upstream v2.1.0 image
+        run: |
+          mkdir -p diagnostics
+          cd diagnostics
+          base=https://github.com/ADCDS/openwrt-xiaomi-ax3000t-rd03v2/releases/download/v2.1.0
+          image=openwrt-qualcommax-ipq50xx-xiaomi_mi-router-ax3000t-v2-squashfs-sysupgrade.bin
+          curl --fail --location --retry 3 "$base/sha256sums.txt" -o upstream-sha256sums.txt
+          curl --fail --location --retry 3 "$base/$image" -o "$image"
+          grep "  $image$" upstream-sha256sums.txt | sha256sum -c -
+      - name: Unpack without running image services
+        run: |
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          spec = importlib.util.spec_from_file_location('verify', 'tools/verify-artifacts.py')
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          module.unpack_root(Path('diagnostics') / (module.PREFIX + '-squashfs-sysupgrade.bin'), Path('diagnostics'))
+          PY
+      - name: Check host shell command shadowing (read-only probe)
+        run: |
+          mkdir -p diagnostics/stubs
+          printf '#!/bin/sh\necho YALA_SHADOW_OK\n' > diagnostics/stubs/dmesg
+          chmod +x diagnostics/stubs/dmesg
+          PATH="$PWD/diagnostics/stubs:$PATH" busybox ash -c 'dmesg' > diagnostics/host-shadow.log 2>&1 || true
+          cat diagnostics/host-shadow.log
+      - name: Run every watchdog scenario with Ubuntu host shell
+        run: |
+          tools/test-watchdog.sh --env host --rootfs "$PWD/diagnostics/root" > diagnostics/watchdog-host.log 2>&1
+          tail -n 5 diagnostics/watchdog-host.log
+      - name: Run every watchdog scenario with shipped arm64 shell
+        run: |
+          tools/test-watchdog.sh --env target --rootfs "$PWD/diagnostics/root" > diagnostics/watchdog-target.log 2>&1
+          tail -n 5 diagnostics/watchdog-target.log
+      - name: Preserve focused test diagnostics
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: watchdog-harness-${{ github.run_number }}
+          path: |
+            diagnostics/*.log
+            diagnostics/upstream-sha256sums.txt
+          retention-days: 3

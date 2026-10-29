@@ -1,5 +1,10 @@
 # OpenWrt for Xiaomi AX3000T (RD03v2)
 
+> This fork is an experimental YALA profile, based on upstream v2.1.0.
+> See [定制固件说明](docs/YALA-FIRMWARE.zh-CN.md) and GitHub Actions for its build.
+> No hardware validation or automatic flashing has been performed. The custom
+> package repository is not published yet. Preserve upstream credits and license.
+
 OpenWrt for the **RD03v2 hardware revision** of the Xiaomi AX3000T: Qualcomm IPQ5018 with a
 QCN6122 5 GHz radio, 256 MB RAM and 128 MB NAND. It installs permanently on NAND and
 supports all four Ethernet ports, both Wi-Fi bands, the status LED, the NFC tag and LuCI,
@@ -8,9 +13,9 @@ with Qualcomm NSS hardware offload for routing and Wi-Fi.
 **RD03v2 only.** The MediaTek RD03/RD23 revisions use different hardware and incompatible
 firmware. Check your hardware revision before flashing.
 
-The image is a pinned release of
+The image is a pinned commit of
 [kuncy7/openwrt-nss-edma](https://github.com/kuncy7/openwrt-nss-edma) (kernel 6.18, NSS on
-mainline stmmac) with [this port's additions](docs/what-this-port-adds.md) on top, and
+mainline stmmac; v2.1.0 pins his branch head of 2026-10-27, after his `ipq50xx-2026.10.23`) with [this port's additions](docs/what-this-port-adds.md) on top, and
 OpenWrt's own snapshot package feeds. Releases are on the
 [releases page](https://github.com/ADCDS/openwrt-xiaomi-ax3000t-rd03v2/releases); what was
 tested on hardware, and what was not, is in [VALIDATION.md](VALIDATION.md).
@@ -45,11 +50,34 @@ tested on hardware, and what was not, is in [VALIDATION.md](VALIDATION.md).
 - **802.11s mesh needs host Wi-Fi mode** (`nss.general.wifi_offload='0'`). With NSS Wi-Fi
   offload on, a mesh interface does not come up and takes its radio's AP down until it is
   removed. v2.0.0 resets in host mode whenever a device connects: use v2.0.1 or later (#47).
-- **A client (station) interface puts Wi-Fi in host mode**, on both radios, from the next boot
-  (#48). Under NSS Wi-Fi offload a station cannot send frames larger than about 860 bytes, so a
-  WISP or repeater uplink would carry no uploads. Reboot after adding one; `nss-status` says
-  when a reboot is needed. In host mode, uploads from 5 GHz clients reach about 190-210 Mbit/s
-  instead of 280-300.
+  Host Wi-Fi mode leaves less memory free: under sustained Wi-Fi traffic about 20 MB less
+  than NSS mode (20-26 MB available on the bench, against 40-42).
+- **From v2.1.0 a client (station) interface stays on the NSS path**, also on an upgrade
+  from v2.0.1 or v2.0.2, which put Wi-Fi in host mode whenever a station existed. On this
+  base a station sends full-size frames against HE and HT-only APs (#48 no longer
+  reproduces); a VHT-only (Wi-Fi 5) 5 GHz AP was not tested. `nss.general.wifi_offload_sta='0'`
+  (or `off`) keeps Wi-Fi on the host path while one is configured, from the next boot;
+  `nss-status` says when a reboot is needed.
+- **On v2.0.0 to v2.0.2, routed UDP into a Wi-Fi client can crash the Wi-Fi firmware in host
+  Wi-Fi mode** (#52): a station on v2.0.1 and v2.0.2, or `nss.general.wifi_offload='0'`.
+  YouTube over QUIC did it within seconds on 5 GHz. ECM gave reply packets an uninitialised
+  priority, which the driver passed on as an invalid traffic ID. Fixed in v2.1.0; on an older
+  release, `echo 0 > /proc/sys/net/ecm/unidir_accel_en` avoids it and keeps wired offload
+  until the next reboot (put it in `/etc/rc.local` to keep it).
+- **On v2.0.0 to v2.0.2, a Wi-Fi client that sends fragmented frames can stop its radio**
+  (#53): after 63 received 802.11 fragments that radio receives nothing more, its clients
+  drop off and cannot rejoin, and its memory runs out over the following days. Few clients
+  ever fragment; a v2.0.2 AP stopped after 42 hours. Only a reboot clears it. Fixed in
+  v2.1.0. With NSS Wi-Fi offload (the default) fragments are reassembled normally (tested on
+  2.4 GHz; the 5 GHz radio gets the same setting, no fragmenting 5 GHz client was
+  tried). In host Wi-Fi mode the radio no longer stops, but most fragmented frames are lost
+  (large ones entirely).
+- **With NSS Wi-Fi offload, reloading the Wi-Fi driver breaks Wi-Fi until a reboot**: the radios
+  come back, but no client or station completes the WPA handshake on either radio, with or
+  without a station configured. The
+  watchdog reloaded the driver as a recovery step on v2.0.0 to v2.0.2; from v2.1.0 it reboots
+  instead with offload on. Do not `rmmod`/`modprobe` ath11k by hand with offload on; host Wi-Fi
+  mode reloads cleanly.
 - **A pairwise key rekey reconnects the client** (`wpa_deny_ptk0_rekey`, default 1, #49).
   Neither radio can replace the key in place: as an AP, a rekey stalled traffic for 16-31 s
   and ended in a deauthentication. With the option the client reconnects instead, in about a
@@ -57,8 +85,14 @@ tested on hardware, and what was not, is in [VALIDATION.md](VALIDATION.md).
   instead of waiting for the AP to give up on the handshake.
 - **On v2.0.0 and v2.0.1, every LuCI login leaks about 175 KiB of `rpcd` memory** (json-c
   0.19, #50), until `rpcd` restarts. Fixed in v2.0.2.
-- **No multi-day soak yet.** Memory held at 40-42 MB available through 100 minutes of Wi-Fi
-  traffic, firmware-crash recoveries and driver reloads.
+- **The CPU runs at up to 1296 MHz** (from v2.1.0, kuncy7's change), 29 % above the IPQ5018's
+  rated 1008 MHz at the same fixed voltage, and about 25 % faster on CPU-bound work. One unit
+  held a 4-hour full-load soak at 59 °C with no computation error; no longer runs, no boot
+  cycling and no Wi-Fi or NSS load at that clock were tested. To keep the rated clock:
+  `echo 1008000 > /sys/devices/system/cpu/cpufreq/policy0/scaling_max_freq` (in `/etc/rc.local`).
+- **No multi-day soak yet.** The longest runs: 6.3 hours of CPU load at 1008 and 1296 MHz;
+  on v2.1.0, 30 minutes of fragmented Wi-Fi traffic in each Wi-Fi mode; on v2.0.0, 100
+  minutes of Wi-Fi traffic, firmware-crash recoveries and driver reloads.
 - **2.4 GHz signal readings are checked to about ±10 dB only.** 5 GHz agrees with the test
   client within 3 dB.
 - `n2h_rx_queue[0]_drops` rise during offloaded PPPoE uploads: that NSS queue has 256 entries

@@ -1,4 +1,6 @@
 #!/bin/sh
+# YALA profile pins the complete installed set to prevent mixed userspace ABIs.
+# The historical minimum set is retained below for package-verifier compatibility.
 # Pin, in /etc/apk/world, the packages this image builds with changes that OpenWrt's snapshot
 # feeds do not have. Their versions do not tell them apart from the official builds (most of
 # the changes come without a release bump), so `apk upgrade` would replace them with the
@@ -12,18 +14,15 @@
 #                     Wi-Fi firmware layout and board data of this tree
 # The package repository of this release carries these exact versions. `apk add <name>` with
 # the plain name lifts a pin. Runs after every flash, so the pins follow the installed image.
-PINS='netifd wifi-scripts tc-full dnsmasq uboot-envtools ath11k-firmware-ipq5018-qcn6122 ipq-wifi-xiaomi_mi-router-ax3000t-v2'
+PINS='netifd wifi-scripts tc-full dnsmasq-full uboot-envtools ath11k-firmware-ipq5018-qcn6122 ipq-wifi-xiaomi_mi-router-ax3000t-v2'
 W=/etc/apk/world
 DB=/lib/apk/db/installed
 [ -f "$W" ] && [ -f "$DB" ] || exit 0
 
-cp "$W" "$W.rd03v2" || exit 1
-for p in $PINS; do
-	v=$(awk -v p="$p" '/^P:/ { n = substr($0, 3) } /^V:/ && n == p { print substr($0, 3); exit }' "$DB")
-	[ -n "$v" ] || continue		# not installed
-	grep -v -x -E "$p([<>=~].*)?" "$W.rd03v2" > "$W.rd03v2.new"
-	echo "$p=$v" >> "$W.rd03v2.new"
-	mv "$W.rd03v2.new" "$W.rd03v2"
-done
-sort -u "$W.rd03v2" > "$W.rd03v2.new" && mv "$W.rd03v2.new" "$W" && rm -f "$W.rd03v2"
+umask 077
+cp "$W" "$W.before-yala-profile" || exit 1
+awk '/^P:/ { n=substr($0,3) } /^V:/ && n != "" { print n "=" substr($0,3); n="" }' "$DB" |
+  sort -u > "$W.yala-new" || exit 1
+[ -s "$W.yala-new" ] || exit 1
+mv "$W.yala-new" "$W"
 exit 0

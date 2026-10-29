@@ -1,0 +1,15 @@
+#!/bin/sh /etc/rc.common
+# Preserve the rated IPQ5018 ceiling when the upstream DTS exposes higher OPPs.
+START=17
+
+start() {
+  local policy current
+  for policy in /sys/devices/system/cpu/cpufreq/policy*; do
+    [ -r "$policy/scaling_max_freq" ] || continue
+    read -r current < "$policy/scaling_max_freq"
+    case "$current" in ''|*[!0-9]*) return 1 ;; esac
+    if [ "$current" -gt 1008000 ]; then
+      echo 1008000 > "$policy/scaling_max_freq" || return 1
+    fi
+  done
+}

@@ -11,7 +11,7 @@ import tarfile
 import tempfile
 
 REPO = Path(__file__).resolve().parents[1]
-SUPPORT = ('luci-app-nss', 'amneziawg-tools', 'luci-proto-amneziawg',
+SUPPORT = ('mihomo-yala', 'luci-app-nss', 'amneziawg-tools', 'luci-proto-amneziawg',
            'wireguard-tools', 'luci-proto-wireguard', 'luci-app-sqm', 'luci-lib-uqr', 'resolveip')
 PREFIX = 'openwrt-qualcommax-ipq50xx-xiaomi_mi-router-ax3000t-v2'
 
@@ -42,7 +42,7 @@ def copy_packages(tree):
                 raise ValueError('invalid image package database')
             installed[name] = line[2:]
     script = REPO / 'overlay/target/linux/qualcommax/ipq50xx/base-files/etc/uci-defaults/95-rd03v2-apk-pins'
-    pins = re.search(r"^PINS='([^']+)'", script.read_text(), re.M).group(1).split()
+    pins = sorted(installed)
     copied = []
     for package in dict.fromkeys((*SUPPORT, *pins)):
         expected = installed.get(package)

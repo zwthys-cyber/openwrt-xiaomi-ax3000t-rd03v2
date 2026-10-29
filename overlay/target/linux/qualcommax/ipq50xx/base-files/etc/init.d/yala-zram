@@ -1,0 +1,21 @@
+#!/bin/sh /etc/rc.common
+START=18
+STOP=90
+start() {
+  grep -q '^/dev/zram0[[:space:]]' /proc/swaps && return 0
+  modprobe zram || return 1
+  [ -e /sys/block/zram0/disksize ] || return 1
+  if [ "$(cat /sys/block/zram0/disksize)" = 0 ]; then
+    echo lzo-rle > /sys/block/zram0/comp_algorithm || return 1
+    echo 25165824 > /sys/block/zram0/mem_limit || return 1
+    echo 67108864 > /sys/block/zram0/disksize || return 1
+    mkswap /dev/zram0 || return 1
+  fi
+  swapon /dev/zram0
+}
+stop() {
+  if grep -q '^/dev/zram0[[:space:]]' /proc/swaps; then
+    swapoff /dev/zram0 || return 1
+  fi
+  echo 1 > /sys/block/zram0/reset
+}

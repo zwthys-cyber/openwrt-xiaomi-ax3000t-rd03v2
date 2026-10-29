@@ -28,7 +28,7 @@ export TMPDIR=${TMPDIR:-$WS/v2-tmp}
 mkdir -p "$TMPDIR"
 KEYDIR=${V2_KEY_DIR:-$WS/keys/v2}
 DLDIR=${V2_DL:-$WS/dl-v2}
-REPO_URL=${V2_REPO_URL:-https://adcds.github.io/openwrt-xiaomi-ax3000t-rd03v2/v2/$TAG/packages.adb}
+REPO_URL=${V2_REPO_URL:-https://zwthys-cyber.github.io/openwrt-xiaomi-ax3000t-rd03v2/yala/$TAG/packages.adb}
 NSS_MIRROR=${V2_NSS_MIRROR:-$WS/mirrors/nss-packages.git}
 die() { echo "build.sh: $*" >&2; exit 1; }
 lines() { grep -vE '^\s*(#|$)' "$1" || true; }  # a list file without comments; empty is fine
@@ -85,6 +85,8 @@ copy_new() {  # copy_new <src> <dst relative to TREE>
 if [ -n "$($G status --porcelain)" ]; then $G add -A; $G commit -q -m "rd03v2 v2 overlay"; fi
 
 # 4. feeds: his feed list, every feed pinned to a commit
+python3 "$V2/tools/apply-yala-profile.py" "$TREE"
+if [ -n "$($G status --porcelain)" ]; then $G add -A; $G commit -q -m "YALA pinned userspace ABI and proxy packages"; fi
 F=$TREE/feeds.conf.default
 anchor 1 '^src-git packages https://git.openwrt.org/feed/packages.git$' "$F"
 anchor 1 '^src-git luci https://git.openwrt.org/project/luci.git$' "$F"
