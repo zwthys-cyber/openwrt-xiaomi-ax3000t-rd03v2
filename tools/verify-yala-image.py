@@ -44,15 +44,22 @@ def main():
         output = subprocess.check_output(common + [str(root / 'usr/bin/ucode'), '-L', str(root / 'usr/lib/ucode/*.so'), '-e', program], text=True, stderr=subprocess.STDOUT, env=env, timeout=45)
         require('YALA_ABI_OK ba7816bf' in output, 'arm64 interpreter imports all wireless/RPC modules under QEMU')
         loaded = []
-        for name, option in [('usr/sbin/hostapd','-v'), ('sbin/netifd','-h'), ('sbin/rpcd','-h')]:
+        # rpcd has no help flag. Its pinned main.c rejects -t 0 before
+        # touching UCI or connecting to ubus, and returns -1 (status 255).
+        probes = [
+            ('usr/sbin/hostapd', ['-v'], (0, 1), 'hostapd'),
+            ('sbin/netifd', ['-h'], (0, 1), 'usage'),
+            ('sbin/rpcd', ['-t', '0'], (255,), 'Invalid execution timeout specified'),
+        ]
+        for name, arguments, expected_codes, marker in probes:
             binary = root / name
             if not binary.exists():
                 continue
-            process = subprocess.run(common + [str(binary), option], text=True, capture_output=True, env=env, timeout=30)
+            process = subprocess.run(common + [str(binary)] + arguments, text=True, capture_output=True, env=env, timeout=30)
             text = process.stdout + process.stderr
-            require(process.returncode in (0, 1), 'binary exits normally: ' + name)
+            require(process.returncode in expected_codes, f'binary expected exit: {name}, status={process.returncode}, output={text[:800]!r}')
             require('symbol not found' not in text.lower() and 'error loading shared library' not in text.lower(), 'arm64 ELF runtime dependencies: ' + name)
-            require(bool(text.strip()), 'binary responds: ' + name)
+            require(marker.lower() in text.lower(), 'binary responds with expected version/usage/validation message: ' + name)
             loaded.append(name)
         require('usr/sbin/hostapd' in loaded and 'sbin/netifd' in loaded, 'wireless consumer binaries exercised')
         # C modules resolve ucode symbols from their host; QEMU imports above
