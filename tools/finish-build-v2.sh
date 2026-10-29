@@ -43,7 +43,7 @@ elif [ -e "$TREE/dl" ]; then
 	die 'preserving an existing dl directory; use the shared download cache explicitly'
 fi
 mkdir -p "$DLDIR"; ln -s "$DLDIR" "$TREE/dl"
-for i in 1 2 3; do (cd "$TREE" && make download -j"$JOBS" >"$TREE/download.log" 2>&1) && break; done ||
+for i in 1 2 3; do (cd "$TREE" && make download -j"$JOBS" V=s >"$TREE/download.log" 2>&1) && break; done ||
 	die "make download failed (see $TREE/download.log)"
 # A rebuild leaves an earlier -wifi installer pair in place, and wifi-initramfs.sh refuses to
 # run over one, so a release would ship the old pair (an earlier build once did). It is
@@ -69,4 +69,8 @@ V2_HEAVY_LOCK_HELD=1 JOBS=$(( JOBS < 2 ? JOBS : 2 )) "$V2/tools/wifi-initramfs-v
 	die "the -wifi installer pass failed (see $TREE/wifi-initramfs.log)"
 
 # 11. check what we built
-"$V2/tools/verify-v2.sh" --tree "$TREE"
+if [ "${V2_DEFER_VERIFICATION:-0}" = 1 ]; then
+	echo 'UNVERIFIED: tree verification deferred to mandatory mkrelease-v2.sh checks'
+else
+	"$V2/tools/verify-v2.sh" --tree "$TREE"
+fi
