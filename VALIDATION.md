@@ -1,6 +1,6 @@
 # v2 validation
 
-What v2.0.0, v2.0.1 and v2.0.2 were tested on before release, and what they were not. Everything
+What v2.0.0 to v2.1.0 were tested on before release, and what they were not. Everything
 here ran on one Xiaomi AX3000T (RD03v2, 256 MB), installed on NAND, with:
 
 - a wired client on a LAN port (1 GbE), the WAN port on an upstream LAN with
@@ -17,11 +17,13 @@ for the QCN6122 with his own user-PD respawn, NSS firmware 12.5, kernel 6.18.55
 and a reworked wifi-scripts. On that base (b22, then the v2.0.0 build) the checks
 those changes touch ran again: see
 [On ipq50xx-2026.10.15-2](#on-ipq50xx-20261015-2-b22-v200). v2.0.2 moves to his
-`ipq50xx-2026.10.19`: see [v2.0.2](#v202).
+`ipq50xx-2026.10.19`: see [v2.0.2](#v202). v2.1.0 moves to his branch head of 2026-10-27
+(`c36db6321c`): see [v2.1.0](#v210).
 
 Each result names the build it ran on. The test builds (`v2.0.0-local.bN`) come
 from the same tree as the release, built with `build.sh`; a release build
-differs from its test build only in its version stamp and repository address.
+differs from its test build only in its version stamp and repository address, except
+where the table below says it adds changes (v2.1.0 does).
 
 | Build | What it adds |
 |---|---|
@@ -41,6 +43,9 @@ differs from its test build only in its version stamp and repository address.
 | v2.0.1 | v2.0.0 plus 987 (host Wi-Fi mode, #47) and tree patches 0008 (a station keeps Wi-Fi on the host path, #48) and 0009 (`wpa_deny_ptk0_rekey`, #49), built fresh; see [v2.0.1](#v201) |
 | v2.0.2-local.b2 | v2.0.1's sources on his `ipq50xx-2026.10.19` (0008 refreshed), plus tree patches 0010 (json-c cleanup fixes, #50) and 0011 (libffi in the core tree); b1, the same without 0011, stopped at python3 |
 | v2.0.2 | the release: b2's sources, built fresh; see [v2.0.2](#v202) |
+| DEV-c36db-b1 | his `c3po-tag-8021q` head `c36db6321c`, tree patches 0010 and 0011 dropped (in his tree), 984 reworked onto his 999-997, the #52 fixes (ECM 9001, ath11k 988, mac80211 989) |
+| DEV-c36db-b2 | b1 with tree patch 0008 reworked: a station stays on the NSS path (#48) |
+| v2.1.0 | the release: b2's sources plus the watchdog's reboot instead of a driver reload under NSS offload, 990 (#53), and the review fixes (991, the guard in 990, `wifi_offload_sta` spellings, the watchdog's offload decision before ath11k loads), built fresh; see [v2.1.0](#v210) |
 
 **Not tested:** a multi-day soak (the longest single runs were hours), more
 than one unit of the hardware, and RF performance beyond throughput at one
@@ -60,12 +65,274 @@ by hand on rc1 (C8, C14).
 | C7 | Board data | byte-identical to v1.x and kuncy7 | - | board data and Wi-Fi firmware byte-identical to rc1's (b22) |
 | C8 | NFC tag | pass, including a phone tap in both modes | b9, rc1 | the tag holds the configured network, in sync (b22); the phone tap not repeated |
 | C9 | Recovery from Q6 firmware crashes, both Wi-Fi modes | pass, in place; a DFS AP stays up (b21, rc1); **2 board resets in 45 recoveries with a station passing traffic, cause not found** | b18-rc1 | pass, in place, about 20 events with no reset and no warning; a DFS AP stays up (b22, v2.0.0) |
-| C10 | Watchdog against user actions | pass | b16 | pass (b22) |
+| C10 | Watchdog against user actions | pass | b16 | pass (b22); from v2.1.0, with NSS Wi-Fi offload, a reboot where it reloaded ath11k (see [v2.1.0](#v210)) |
 | C11 | Memory | 42 MB available idle, 34-36 MB in use, no drift; a multi-day soak not run | b19 | 42 MB available idle at 5 / 15 / 25 min; 100 min of Wi-Fi traffic: flat at 40 MB (b22) |
 | C12 | Packages from our repository, tunnels, SQM | pass | b9 | kmods and AmneziaWG from the build's repository (b22); AmneziaWG from the published repository, with traffic, a reboot and the LuCI import (v2.0.0) |
 | C13 | Upgrade from a realistic v1.x install | pass | b16 | not re-run; the migration's assumptions checked against his nss-tools |
 | C14 | Buttons and LEDs | pass: both LEDs, both buttons, reboot, failsafe, factory reset | b9, rc1 | not re-run (no hardware or device tree change) |
 | C15 | Package signature failures | pass, 8 checks | b9 | not re-run (same signing) |
+
+## v2.1.0
+
+v2.0.2 moved to his `c3po-tag-8021q` branch head of 2026-10-27 (`c36db6321c`, after his
+`ipq50xx-2026.10.23`), plus the fixes for #52 and #53, a station on the NSS path (#48) and a
+watchdog that reboots instead of reloading the driver under NSS offload. His tree has
+no release tag on this commit yet: `upstream.lock` pins the commit, and `feeds.lock` pins the
+package feeds as they were at its commit time, a combination his CI has not built. His
+range was reviewed before the bump (293 tree commits, filtered to what our build compiles:
+his own patches read diff by diff, OpenWrt's package bumps by their commit lists; and the
+NSS feed from `a8e0e5cc` to `57c0fa18f`): no rejects; one adjusted in our overlay (999-997,
+see 984 below). Most checks below ran on DEV-c36db-b2: the release's sources without the
+watchdog change, 990 and the review fixes; each section names its build. b2: `verify-v2` 170 / 170 (new: his tree still provides the json-c fixes and
+libffi our tree patches 0010 and 0011 carried, the ECM and mac80211 patch fingerprints, the
+TX TID mask, the 984 cache in every mode and drained under `ce_lock`, the 2048-byte RX
+buffer length in every memory profile).
+
+**His tree under v2.1.0.**
+- **Wi-Fi driver:**
+  - his fix for the TX completion status offset (244a), which was behind the host-mode
+    `tx completion mismatch` flood (#48 logs);
+  - a per-CE-pipe RX cache for NSS mode (999-997). It does what our 984 did, so 984 is now a
+    two-hunk delta on top of it: the cache in host mode too, and drained under `ce_lock`,
+    which the RX replenish timer also takes;
+  - a 1024-entry RXDMA ring on the QCN6122 (999-9901);
+  - the 256 MB RX buffer length back at 2048 bytes (999-990, the bug our 965 fixed at the
+    call sites);
+  - mac80211 locking fixes.
+- **NSS:** firmware empty-buffer payloads on whole pages (nss-drv 0149): the pool's pages
+  leave `SUnreclaim`, an accounting shift rather than freed memory (see Memory below).
+- **CPU:** scaled by schedutil between 1008 and 1296 MHz at the same fixed voltage, instead
+  of pinned at 1008 by the `performance` governor. `soc_id` 447 is in his clock patch's list.
+- **OpenWrt main of 2026-10-21 and 2026-10-26:**
+  - the json-c fixes and libffi (our former tree patches 0010 and 0011);
+  - five dnsmasq CVEs and the musl `regcomp` CVE;
+  - hostapd fixes, among them apsta and `start_disabled`, which matter for a WISP uplink;
+  - per-port host FDB tracking in DSA;
+  - `kmod-nf-log6` removed (an empty package since kernel 5.13);
+  - procd now kills an instance's leftover processes when it exits.
+- **Our patches:** tree patch 0008 refreshed and reworked (#48 below); our ath11k patches and
+  kernel patches 0918 and 0959e apply without fuzz. His 999-972 applies with fuzz in our
+  build, which leaves his mesh patches out; it is listed in `tools/mac80211-fuzz-reviewed.txt`.
+- **Config:** `CONFIG_KERNEL_DEBUG_INFO=y`. His merge made an unset option really mean no
+  debug information; we keep it for decoding oopses from the build tree (the image is
+  stripped either way).
+
+**#52 (routed UDP into a Wi-Fi client asserts the firmware in host mode).** Reproduced on
+v2.0.2 with the reporter's setup: a 5 GHz station uplink, Wi-Fi in host mode, YouTube over QUIC on a
+client; same assert, same PC. Only UDP routed into a Wi-Fi client triggers it, over the
+station or the wired WAN; TCP, traffic to wired clients, and NSS Wi-Fi mode do not.
+
+- **The cause:** ECM marks every UDP connection uni-directional and, for packets of the
+  reply direction, copies an uninitialised QoS tag into `skb->priority`. In host mode ath11k
+  hands the priority to the firmware as the frame's TID, and a TID above 7 asserts it. An
+  nft counter after ECM, up to the assert: 369 packets of such a flow carried a priority, 349 of
+them one above 7;
+  `echo 0 > /proc/sys/net/ecm/unidir_accel_en` stops it on v2.0.2.
+- **The fix:** ECM gives both directions' tags a value (9001); ath11k keeps a data frame's
+  TID in 0-7 (988); mac80211 gives the 802.3 TX queue a defined value (989).
+- **On b1** (the same fixes, host mode with the station):
+
+| Run | Packets | Asserts | Priority set |
+|---|---|---|---|
+| UDP down to the 5 GHz client, 20 Mbit/s, 120 s | 240,005, no loss | 0 | 0 |
+| UDP down to the 2.4 GHz client, 20 Mbit/s, 60 s | 119,999, no loss | 0 | 0 |
+| YouTube over QUIC, 5 GHz client, twice | - | 0 | - |
+| wired WAN to the 5 GHz client, 20 Mbit/s, 60 s | 120,004, no loss | 0 | - |
+
+  v2.0.2 asserted within seconds in each. Wired NAT stayed offloaded: 941 Mbit/s, flows in ECM.
+- **On b2**, host mode chosen with `wifi_offload_sta='0'`: UDP 20 Mbit/s for 45 s, 90,005
+  packets, no assert.
+- **NSS Wi-Fi mode** does not take that path: on v2.0.2, without the fix, routed UDP into a
+  client on either band did not assert, with ECM offloading the flows. On b2 with the station
+  on NSS (default ECM settings): 180,008 UDP packets to the 5 GHz client and 120,012 to the
+  2.4 GHz client, and YouTube over QUIC; no assert.
+
+**#53 (a radio stops receiving after a client sends fragments).** A v2.0.2 AP's 2.4 GHz
+radio received nothing more from 42.8 hours of uptime (its first REO command failure, -105,
+in the kernel log) and ran out of memory by 6.6 days, when it was looked at. Read on that box:
+`REO2FW_DEST_RING`, a ring towards the firmware that nothing drains (its tail stays 0), was
+full with 63 entries, all 802.11 fragments from one station; behind it the whole REO block
+had stopped (`RXDMA2REO_CMD_RING` backed up, REO commands failing with -105, queue
+descriptors of departed stations piling up).
+
+- **Reproduced on the bench:** a client fragmenting at 256 bytes (a USB adapter whose
+  driver fragments in software, HT off so frames are not aggregated) wedges the radio in
+  seconds with 1000-byte pings; the ring dump matches the AP's.
+- **The cause:** on IPQ5018 and QCN6122 the REO takes the fragment destination from
+  `REO1_MISC_CTL` (offset 0x5d8, the WCN6750 layout these chips share), not from the IPQ8074
+  field in `GEN_ENABLE` that ath11k writes. Both radios read `0x000c0000` at boot: 6, the
+  firmware ring. A first fix that changed only `GEN_ENABLE` still wedged.
+- **The fix (990):** write the destination into `MISC_CTL`. On the 2.4 GHz radio with NSS
+  offload, on DEV-c36db-b2's modules plus 990 and bench debug patches (a register knob, ring
+  dumps); the release image's own runs are under "The release on NAND" below:
+
+| Run | Result |
+|---|---|
+| 2000 pings of 1000 B; sizes 200-1472 B; 500 bridged to a wired host; 200 of 3000 B | 1999 / 2000; 0 % at every size; 500 / 500; 199 / 200 |
+| TCP upload, 30 s, fragmented | 11.4 Mbit/s |
+| 10 reconnects with fragmented traffic | all clean |
+| 30 min: 1000 fragmented pings a minute, an upload every 3 min, a reconnect every 5 | 29,984 / 30,000; 1.54 million fragments reassembled into 228,581 frames; `REO2FW_DEST_RING` empty, RX descriptors and `SUnreclaim` flat |
+| the field set back to 6 on the same boot | wedged again within 100 pings; only a reboot recovers |
+
+  In host mode (`wifi_offload='0'`) the fragments go to the host's REO exception ring and the
+  radio no longer wedges, but ath11k's host reassembly loses most fragmented frames: by run,
+  1-100 % of pings lost (all of the 3000-byte ones), the delivered ones up to seconds late, a
+  fragmented TCP upload did not finish. 5 GHz: the same register value at boot (6) and after
+  the fix (7), read with the bench knob; no 5 GHz client that fragments was available. Which
+  client fragmented on the reporter's AP is not known.
+
+**#48 (a station on the NSS path).** On v2.0.2, and on this base, an NSS station sends
+full-size frames. On v2.0.2 unless the build is named:
+
+| Station | Result |
+|---|---|
+| 5 GHz station, HE AP (MT7981) | pings of 200-1472 bytes both ways without loss; upload at its 50 Mbit/s cap; HE-MCS 9-11 |
+| 2.4 GHz station, the same AP | pings without loss at every size; upload at its 30 Mbit/s cap |
+| 2.4 GHz station, HT-only AP | 10 / 10 associations good; upload 53.2 Mbit/s, download 48.8; host mode on v2.0.1 47.5 up |
+| the same, added at runtime after a boot without a station | every size without loss, MCS 7, upload 51.2 Mbit/s |
+| v2.1.0 (before the review fixes), 5 GHz station, HE AP | the NAND runs below: 50 Mbit/s through the station, wired NAT offloaded |
+| v2.1.0, 2.4 GHz station, HE AP (HE-MCS 7-8) | don't-fragment pings of 200-1472 bytes from a wired client through it: 0 % loss; upload at its 30 Mbit/s cap, no retransmission |
+| v2.1.0, 2.4 GHz station, HT-only AP (an RT3070 USB adapter, MCS 4-7) | pings of 200-1472 bytes as above: 0-5 % loss at the small sizes, none from 800 bytes up; upload 22.4 Mbit/s, download 7.5. The same with `wifi_offload_sta='0'` (host path), same hour: upload 10.9, download 8.9 |
+
+The failures first reproduced on v2.0.2 came from the test AP: a QCA9377 card whose radio is
+shared with Bluetooth, which was playing audio; with Bluetooth off it never failed. The
+v2.0.0 runs that led to 0008 used the same card, Bluetooth state not recorded. So tree patch
+0008 now leaves a station on the NSS path; `nss.general.wifi_offload_sta='0'` is the opt-out,
+checked across a reboot on b2 (`nss-status` asked for the reboot first, then reported host
+mode with the reason, and the boot log names it). Untested: a VHT-only 5 GHz AP, like the
+reporter's (no such AP on the bench: the test PC's QCA9377 may not transmit on 5 GHz), and an A/B
+of NSS against host mode under interference. An upgrade from v2.0.1 or v2.0.2 moves a
+configured station to the NSS path without asking.
+
+**C4, same rig, same hour** (NSS, no station, 5 GHz AP on channel 36, iperf3 20 s, Mbit/s):
+
+| Build | 5 GHz up / down | 2.4 GHz up / down |
+|---|---|---|
+| b2 | 215, 207 / 326, 325 | 33.7, 34.0 / 59.0, 59.2 |
+| v2.0.2 | 225, 206 / 325, 326 | 33.5, 33.1 / 58.6, 58.3 |
+
+Both are below the earlier v2.0.2 figures (245-274 up): the AP shared its channel with the
+upstream AP that day. The CPU clock made no difference (pinned at 1008 or 1296: 204-210 up,
+CPU 95 % idle).
+
+**Memory.** After the same runs: b2 36.3 MB available, 23.3 MB `SUnreclaim` (about 6 min of
+uptime); v2.0.2 34.2 MB and 45.1 MB (61 min). The `SUnreclaim` drop is nss-drv 0149.
+
+**1296 MHz.** DEV-c36db-b2 with the station on NSS, 6.3 hours. Two `gzip | gunzip | sha256sum`
+loops kept both cores busy and checked every result; clock, four thermal zones and
+`MemAvailable` were logged every 10 s:
+
+| Phase | Clock | Peak CPU / NSS °C | Checksum runs | Mismatches |
+|---|---|---|---|---|
+| 20 min | pinned at 1008 | 58 / 59 | 385 | 0 |
+| 2 h | 1008 / 1296 toggled, about 366,500 transitions | 58 / 59 | 1,398 | 0 |
+| 4 h | pinned at 1296 | 59 / 60 | 4,946 | 0 |
+
+No reset, oops, firmware assert, lockup or RCU stall; 32-35 MB available throughout. The
+CPU throttles at 100 °C. The checksum loop is mostly memory-bound (6 % more runs at 1296), so
+the clock was measured separately on the release: a CPU-bound `awk` loop takes 54.4-55.0 s
+pinned at 1008 MHz and 43.6-43.9 s at 1296, 24-25 % faster. Limits: CPU load only (no NSS or
+Wi-Fi traffic in the pinned phase), a night-time room, one unit; the base-bump review's
+plan for it (72 hours, 20 cold and 20 warm boots, NSS and Wi-Fi load at 1296) was not run.
+1296 MHz is above the IPQ5018's rated 1008 at the same voltage. Holding the rated clock is
+one setting, in the README.
+
+**Driver reload with NSS Wi-Fi offload (C9, C10).** A client last joined after such a reload
+on the 10.09 base; on b22 the watchdog's reload after a manual unload (C10) brought both
+radios back, and no client was tried. Unloading and loading ath11k as the watchdog does (`wifi down`, `rmmod`, `modprobe`,
+`wifi up`), with offload on and a station on the 5 GHz radio: both radios come back and the
+station associates (the 5 GHz AP waits for it), but no client or station completes a 4-way
+handshake on either radio (`4WAY_HANDSHAKE_TIMEOUT` on the station; "4-Way Handshake failed" on a client of
+the 2.4 GHz AP). NSS drops the 5 GHz radio's received frames as REO "null queue" (386 in a
+few minutes). The same on a fresh boot, and on v2.0.2 with `wifi_offload_sta='1'`, so it
+predates this base. Without a station (APs only, on the release before the review fixes):
+the same, both APs up, a client's handshake on the 2.4 GHz AP failing every time
+("4-Way Handshake failed", reason 15) and the 5 GHz AP not joined. An ath11k reset afterwards
+does not help; a reboot does. Host mode
+reloads cleanly: everything back in 64 s, a 50 Mbit/s download through the station. On
+v2.0.0 to v2.0.2 the watchdog took such a reload for a recovery whenever the radios looked
+healthy afterwards; from v2.1.0 it reboots instead once ath11k has run with offload in that
+boot (`tools/test-watchdog.sh`: 46 / 46 with the review fixes, among them new NSS scenarios).
+
+**Checks from the release review.** An adversarial review of the v2.1.0 changes
+(`evidence/2026-10-28-v2.1.0-review/REVIEW.md`) raised these, checked on the release before
+its fixes:
+- **A station whose uplink AP is gone, with the watchdog acting:** 9 minutes of a station
+  scanning for a missing AP (dry run): no incident. While it is unconnected, OpenWrt keeps the
+  AP on that radio down too, and a radio with nothing up has no in-use survey entry for the
+  freeze check to read.
+- **An `skb->priority` above 7 with NSS Wi-Fi offload** (988 covers host mode only): an nft
+  rule setting priority 9 on UDP routed into the 5 GHz client, ECM's front end stopped so that
+  every packet took the slow path: 62,518 packets, no loss, no assert.
+- **Host-mode memory under traffic** (the review asked for a soak of the host fragment path):
+  see the last rows of the release table below. Host Wi-Fi mode costs about 20 MB of
+  available memory under sustained Wi-Fi traffic, fragments or not; NSS mode stays at 40-42 MB.
+- **Firmware-crash recovery time:** bimodal, 8.4-10.5 s or 32.6-34.6 s. In the slow runs the
+  5 GHz test client kept an association that carried nothing until hostapd dropped it for
+  inactivity (default settings), then rejoined at once. It is not tied to a second client or
+  to fragments, and it predates 990: six asserts alternating between the radios, same rig and
+  hour, took 32.6 s once on the build without 990 (f7f55a3) and twice on the release.
+
+**The release on NAND.** First a v2.1.0 build without the watchdog change (the release's
+sources otherwise, `verify-v2` 170 / 170), installed through the RAM installer from v2.0.2 with
+settings kept: all 47 configuration files byte-identical, 200 packages (`kmod-nf-log6` gone),
+NSS offload on with the station, both APs, no kernel warning, 42.5 MB available at 78 s.
+On it, with the station on the NSS path unless noted:
+
+| Check | Result |
+|---|---|
+| #52, UDP 20 Mbit/s for 60 s into a client | 2.4 GHz and 5 GHz: 125,000 packets each, no loss, no assert; the same in host mode (`wifi_offload_sta='0'`, after a reboot) |
+| C9, hw-restart and assert on each radio | 4 / 4 in place in 10.5-14.6 s: station, client and 50 Mbit/s through the station back, same boot, no warning; the watchdog logs them as recovered by the kernel |
+| C9 in host mode | driver reload: everything back in 64 s; assert (5 GHz) and hw-restart (2.4 GHz) in about 10 s |
+| C4, client to a wired host on the LAN | 188 / 313 Mbit/s on 5 GHz (the station shares the radio), 40 / 57 on 2.4 GHz |
+| Wired client to the uplink through the station | offloaded by ECM, CPU 95 % idle at the 50 Mbit/s test cap |
+| A client's MAC moves from Wi-Fi to a LAN port and back (his DSA host FDB change) | traffic within 1 s each way, the bridge follows, no switch error |
+| Reboots | 2, everything up within about 63 s |
+
+Then a build with everything but the #53 fix (990), `verify-v2` 170 / 170, installed from
+its assets the same way: 47 / 47 configuration files byte-identical, NSS with the station,
+both APs, no warning. UDP 20 Mbit/s for 30 s into the 5 GHz client: no loss, no assert; an
+assert on 5 GHz recovered in place in 8.4 s. The watchdog's new step, end to end: with
+offload on, ath11k unloaded by hand; the watchdog detected the missing radios, did not
+reload, logged "REBOOTING: ... (a driver reload does not recover NSS Wi-Fi offload)" and
+rebooted; after it everything was back (NSS, station, both APs, 237 / 323 Mbit/s on 5 GHz).
+Its incident file gives the health as "healthy" there: no health check runs when the reload
+is skipped, as with `reload '0'`.
+
+Then a build that adds 990 and nothing else to that image (2678d15, before the review fixes;
+the watchdog byte-identical), `verify-v2` 171 / 171, installed from its assets the same way:
+47 / 47 configuration files byte-identical, NSS with the station, both APs, no warning,
+41 MB available.
+
+| Check | Result |
+|---|---|
+| #53, a client fragmenting at 256 bytes on 2.4 GHz | the fragment register holds 7; 2000 / 2000 pings of 1000 B, 0-2 % loss at 300-1472 B, 500 / 500 bridged to a wired host, 200 / 200 of 3000 B, a 10.5 Mbit/s upload, 3 reconnects; 157,459 fragments reassembled into 23,205 frames, `REO2FW_DEST_RING` empty |
+| #52, UDP 20 Mbit/s for 60 s into a client | 2.4 GHz and 5 GHz: 125,000 packets each, no loss, no assert; the same on 5 GHz in host mode |
+| C9, assert on 5 GHz | in place in 8.5 s |
+| C9, assert or hw-restart on 2.4 GHz (restarts both radios) | in place in 8.4-8.6 s in 3 runs, 32.6-34.6 s in 5: the 5 GHz client kept an association that carried nothing until hostapd's inactivity check dropped it, and it rejoined at once (see "Checks from the release review": this predates 990) |
+| C4, client to a wired host | 234 / 322 Mbit/s on 5 GHz, 36.5 / 58.4 on 2.4 GHz |
+| Reboot | everything up at 85 s |
+| Host mode | the fragment register holds 0, fragments reach the exception ring, no stall; fragmented frames arrive late or not at all (1-100 % loss by run); memory settles at 34 MB |
+| Back to NSS, reboot | everything up, no warning |
+
+Then the release itself: that build plus the review fixes (806a013: 991, the guard in 990,
+the `wifi_offload_sta` spellings, the watchdog's offload decision before ath11k loads and its
+incident text), `verify-v2` 174 / 174, installed the same way: 47 / 47 configuration files
+byte-identical, NSS with the station, both APs, no warning, 41 MB available, the watchdog
+byte-identical to the source.
+
+| Check | Result |
+|---|---|
+| #53, a client fragmenting at 256 bytes on 2.4 GHz | the fragment register holds 7; 2000 pings of 1000 B: 1.7 % lost, 500 bridged to a wired host: 2 %, 200 of 3000 B: 8 % (the same client unfragmented lost 1.8-2.4 % that hour); an 11.0 Mbit/s upload, 3 reconnects; 153,148 fragments reassembled into 22,466 frames, `REO2FW_DEST_RING` empty |
+| #53, 30 minutes (the release's own modules): 1000 fragmented pings a minute, an upload every 3 minutes, a reconnect every 5 | about 2 % of pings lost each minute, as unfragmented; 1,505,072 fragments into 221,522 frames, none out of order or invalid; `REO2FW_DEST_RING` empty, RX descriptors flat, no REO command failure; uploads 10.8-11.2 Mbit/s; reconnects 1 s; 40-42 MB available, `SUnreclaim` 21.9-22.4 MB |
+| #52, UDP 20 Mbit/s for 60 s into a client | 2.4 GHz and 5 GHz: 125,006 packets each, no loss, no assert; the same on 5 GHz in host mode |
+| C9, asserts and a hw-restart on both radios (10 events) | all in place, same boot, no warning: 8.4-10.5 s, or 32.6-34.6 s in 4 (see "Checks from the release review") |
+| C4, client to a wired host | 208 / 310 Mbit/s on 5 GHz, 45.8 / 58.6 on 2.4 GHz |
+| The watchdog, end to end | ath11k unloaded by hand with offload on: detected 60 s later, no reload, a reboot; the incident file gives the health as "not checked (no driver reload with NSS Wi-Fi offload)"; after the reboot everything up |
+| `wifi_offload_sta='off'` with the station | `nss-status` asked for a reboot (its message still names the value `0`); after it, host mode with the station, the boot log names the reason |
+| Host mode, 30 minutes of the #53 soak | no stall; pings about 2 % lost at that rate, uploads 7.4-8.5 Mbit/s; available memory fell from 43 MB to 5-10 MB at the first upload and stayed there (once 0.6 MB, at the end of an upload, with 19 MB free); 12 MB came back when the client left, 20 MB after a Wi-Fi restart and dropping the page cache |
+| Host mode, the same traffic unfragmented then fragmented, 10 minutes each, fresh boot | unfragmented: 42.6 MB available before, 20-26 MB once the first upload ran (22.4 Mbit/s); then fragmented: 17-20 MB. Most of the drop is host-mode Wi-Fi traffic itself, not fragments |
+| Back to NSS, reboot | everything up, no warning, 40.6 MB available; 47 / 47 configuration files as before the tests |
 
 ## v2.0.2
 
@@ -207,7 +474,8 @@ policy, no kernel warning, 42 MB available at 2.5 min.
 
 **C10 (b22).** `wifi down` and a radio disabled in UCI: "taken down on purpose",
 nothing done. `rmmod ath11k_ahb ath11k` by hand: detected (`q6wcss=offline`), ath11k
-reloaded, both radios back, same boot.
+reloaded, both radios back, same boot; no client was tried after it (from v2.1.0 the watchdog
+reboots here with NSS offload: see [v2.1.0](#v210)).
 
 **C11 (b22).** Idle, both radios up, no clients: MemAvailable 42 / 42 / 42 MB at
 5 / 15 / 25 min, SUnreclaim 35 MB. Then 100 minutes of TCP both ways at 50 Mbit/s each,
@@ -373,7 +641,7 @@ no warning. b18, 2.4 GHz AP on channel 6:
 |---|---|---|---|
 | NSS offload (default) | hw-restart, 2.4 GHz x5, 5 GHz x5 | 10 / 10, in place | 6-18 s |
 | NSS offload | assert, 2.4 GHz x3, 5 GHz x3 | 6 / 6, in place | 7-18 s |
-| NSS offload | driver reload x5 | 5 / 5 (a first run lost one 2.4 GHz session to a missed authentication ACK; the radio was fine right after) | |
+| NSS offload | driver reload x5 | 5 / 5 (a first run lost one 2.4 GHz session to a missed authentication ACK; the radio was fine right after); on his 10.09 base: on 10.19 and later the handshake fails after it, see [v2.1.0](#v210) | |
 | host | hw-restart, 2.4 GHz x5, 5 GHz x5 | 10 / 10, in place | 3-7 s |
 | host | assert, 2.4 GHz x3, 5 GHz x3 | 6 / 6, in place | 3-5 s |
 | host | driver reload x5 | 5 / 5 | |
@@ -456,7 +724,7 @@ traffic moved it by 0.5 MB, and a driver reload gives the buffers back (40-42 MB
 |---|---|---|
 | `wifi down` for 4 min | "taken down on purpose", nothing done | pass |
 | one radio disabled in UCI for 4 min | the same, for that radio | pass |
-| `rmmod ath11k_ahb ath11k` by hand | detected, ath11k reloaded, recovered, no reboot | pass, same boot |
+| `rmmod ath11k_ahb ath11k` by hand | detected, ath11k reloaded, recovered, no reboot | pass, same boot (from v2.1.0, with NSS offload: a reboot) |
 | a fourth incident within an hour | reboot (its budget is three recoveries an hour) | pass |
 
 **After a channel change** (rc1 (b21 sources)): OpenWrt applies a new
@@ -471,7 +739,8 @@ moved, and the watchdog did nothing in 21 minutes of uptime.
 The watchdog's own scenario suite (43 scenarios, the router's BusyBox through
 qemu and the host's) runs in every build. The release candidate ships
 `inplace` unset, which now means off in both Wi-Fi modes: an incident without
-a crash goes straight to the driver reload, which recovered every time; the
+a crash goes straight to the driver reload, which recovered every time (from v2.1.0, with
+NSS offload, a reboot instead); the
 ath11k reset needs `uci set rd03v2-watchdog.main.inplace=1`.
 
 ## C8, C14: NFC tap, buttons and LEDs, by hand (rc1)

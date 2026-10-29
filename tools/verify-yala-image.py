@@ -34,6 +34,8 @@ def main():
         require('luci-app-openclash' in installed and 'kmod-zram' in installed, 'proxy UI and compressed swap installed')
         require('GOMEMLIMIT=32MiB' in (root / 'etc/init.d/openclash').read_text(), 'persistent core memory environment')
         require((root / 'etc/rc.d/S18yala-zram').is_symlink(), 'early zram startup enabled')
+        require((root / 'etc/rc.d/S17yala-cpu-limit').is_symlink(), 'rated CPU ceiling enabled at boot')
+        require('1008000' in (root / 'etc/init.d/yala-cpu-limit').read_text(), 'rated 1008 MHz CPU ceiling retained')
         old = list(root.glob('usr/lib/libucode.so.20230711*'))
         require(not old, 'no legacy libucode fallback retained')
         env = dict(os.environ, GOGC='50', GOMEMLIMIT='24MiB')
@@ -65,6 +67,7 @@ def main():
         require(set(installed) <= names, 'every installed package is available in the matching signed bundle')
         require('mihomo-yala' in names, 'matching official-core package available separately')
         report = {'source_commit':os.environ.get('GITHUB_SHA'), 'run_url':f"https://github.com/{os.environ.get('GITHUB_REPOSITORY')}/actions/runs/{os.environ.get('GITHUB_RUN_ID')}", 'board':'xiaomi,mi-router-ax3000t-v2', 'ucode_abi':'20261009', 'zram_logical_mib':64, 'zram_physical_cap_mib':24, 'core_in_installer':False, 'installed_packages':len(installed), 'signed_feed_packages':len(names), 'hardware_validation':'not performed', 'flashing':'not performed or authorized', 'feed_publication':'not performed; draft artifacts only', 'public_key_sha256':hashlib.sha256((REPO / 'keys/public-key.pem').read_bytes()).hexdigest()}
+        report.update(upstream_release='v2.1.0', cpu_max_khz=1008000)
         (release / 'yala-verification.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps(report,indent=2))
 

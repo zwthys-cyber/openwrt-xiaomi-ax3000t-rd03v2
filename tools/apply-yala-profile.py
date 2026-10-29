@@ -23,6 +23,7 @@ def main():
     startup = tree / 'files/etc/rc.d/S18yala-zram'
     startup.parent.mkdir(parents=True, exist_ok=True)
     startup.symlink_to('../init.d/yala-zram')
+    (startup.parent / 'S17yala-cpu-limit').symlink_to('../init.d/yala-cpu-limit')
     target = tree / 'package/yala/luci-app-openclash'
     if target.exists():
         raise ValueError('refusing to overwrite an existing OpenClash package')

@@ -22,6 +22,7 @@ jobs:
         run: |
           for script in build.sh tools/*.sh; do bash -n "$script"; done
           sh -n overlay/target/linux/qualcommax/ipq50xx/base-files/etc/init.d/yala-zram
+          sh -n overlay/target/linux/qualcommax/ipq50xx/base-files/etc/init.d/yala-cpu-limit
           sh -n overlay/target/linux/qualcommax/ipq50xx/base-files/etc/uci-defaults/98-yala-profile
           python3 -m unittest discover -s tests -v
 

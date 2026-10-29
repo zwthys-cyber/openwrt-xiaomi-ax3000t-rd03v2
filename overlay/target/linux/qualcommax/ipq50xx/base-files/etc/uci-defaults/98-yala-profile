@@ -1,5 +1,7 @@
 #!/bin/sh
 # Never embed Wi-Fi credentials, WAN settings, or subscription URLs.
+/etc/init.d/yala-cpu-limit enable
+/etc/init.d/yala-cpu-limit start
 /etc/init.d/yala-zram enable
 /etc/init.d/yala-zram start
 if uci -q get openclash.config >/dev/null; then

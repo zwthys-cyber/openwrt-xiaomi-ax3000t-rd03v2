@@ -87,6 +87,20 @@ class ProfileTests(unittest.TestCase):
             self.assertEqual((sysfs / 'mem_limit').read_text().strip(), '25165824')
             self.assertEqual((sysfs / 'comp_algorithm').read_text().strip(), 'lzo-rle')
 
+    def test_cpu_ceiling_preserves_lower_user_limits(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = (BASE / 'etc/init.d/yala-cpu-limit').read_text().replace('/sys/devices/system/cpu/cpufreq', str(root))
+            policy = root / 'policy0'
+            policy.mkdir()
+            maximum = policy / 'scaling_max_freq'
+            for original, expected in [('1296000', '1008000'), ('1008000', '1008000'), ('864000', '864000')]:
+                with self.subTest(original=original):
+                    maximum.write_text(original + '\n')
+                    result = subprocess.run(['sh', '-c', source + '\nstart'], capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(maximum.read_text().strip(), expected)
+
 
 if __name__ == '__main__':
     unittest.main()
