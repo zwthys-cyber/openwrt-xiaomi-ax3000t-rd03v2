@@ -53,7 +53,9 @@ def main():
             require(bool(text.strip()), 'binary responds: ' + name)
             loaded.append(name)
         require('usr/sbin/hostapd' in loaded and 'sbin/netifd' in loaded, 'wireless consumer binaries exercised')
-        for name in ('usr/sbin/wpad', 'sbin/netifd', 'usr/lib/ucode/fs.so'):
+        # C modules resolve ucode symbols from their host; QEMU imports above
+        # validate those bindings. Only executable consumers require a NEEDED entry.
+        for name in ('usr/sbin/wpad', 'sbin/netifd', 'usr/bin/ucode'):
             text = subprocess.check_output(['readelf','-d',str(root / name)],text=True)
             require('libucode.so.20261009' in text and 'libucode.so.20230711' not in text, 'linked ABI: ' + name)
         apk = tree / 'staging_dir/host/bin/apk'
