@@ -19,10 +19,17 @@ wpad-mbedtls
 !wpad-basic-mbedtls
 i2c-tools
 ethtool
-# in our repository only, never in the image
-!kmod-tun
-!kmod-inet-diag
-!kmod-nft-tproxy
+# Proxy interfaces and compressed swap belong in the YALA image.
+kmod-tun
+kmod-inet-diag
+kmod-nft-tproxy
+kmod-zram
+luci-app-openclash
+!mihomo-yala
+dnsmasq-full
+!dnsmasq
+ucode-mod-digest
+# Optional VPN packages remain in the matching repository only.
 !kmod-amneziawg
 !amneziawg-tools
 !luci-proto-amneziawg

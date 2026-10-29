@@ -1,0 +1,18 @@
+#!/bin/sh
+# Never embed Wi-Fi credentials, WAN settings, or subscription URLs.
+/etc/init.d/yala-zram enable
+/etc/init.d/yala-zram start
+if uci -q get openclash.config >/dev/null; then
+  uci set openclash.config.enable='0'
+  uci set openclash.config.stream_auto_select='0'
+  uci set openclash.config.find_process_mode='off'
+  uci set openclash.config.china_ip_route='1'
+  uci commit openclash
+fi
+# A working direct resolver before the user restores/enables the proxy.
+uci set dhcp.@dnsmasq[0].noresolv='1'
+uci -q delete dhcp.@dnsmasq[0].server
+uci add_list dhcp.@dnsmasq[0].server='223.5.5.5'
+uci add_list dhcp.@dnsmasq[0].server='1.1.1.1'
+uci commit dhcp
+exit 0

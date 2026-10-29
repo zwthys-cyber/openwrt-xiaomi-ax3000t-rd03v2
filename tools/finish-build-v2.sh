@@ -34,7 +34,7 @@ done
 # stamps a new one. Without TAG the tree keeps the stamp it was prepared with.
 if [ -n "${TAG:-}" ]; then
 	"$V2/tools/stamp-release-v2.sh" "$TREE" "$TAG" \
-		"${V2_REPO_URL:-https://adcds.github.io/openwrt-xiaomi-ax3000t-rd03v2/v2/$TAG/packages.adb}"
+		"${V2_REPO_URL:-https://zwthys-cyber.github.io/openwrt-xiaomi-ax3000t-rd03v2/yala/$TAG/packages.adb}"
 fi
 # 8. build
 if [ -L "$TREE/dl" ]; then

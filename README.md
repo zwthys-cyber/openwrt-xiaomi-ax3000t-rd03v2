@@ -1,5 +1,10 @@
 # OpenWrt for Xiaomi AX3000T (RD03v2)
 
+> This fork is an experimental YALA profile, based on upstream v2.0.2.
+> See [定制固件说明](docs/YALA-FIRMWARE.zh-CN.md) and GitHub Actions for its build.
+> No hardware validation or automatic flashing has been performed. The custom
+> package repository is not published yet. Preserve upstream credits and license.
+
 OpenWrt for the **RD03v2 hardware revision** of the Xiaomi AX3000T: Qualcomm IPQ5018 with a
 QCN6122 5 GHz radio, 256 MB RAM and 128 MB NAND. It installs permanently on NAND and
 supports all four Ethernet ports, both Wi-Fi bands, the status LED, the NFC tag and LuCI,
